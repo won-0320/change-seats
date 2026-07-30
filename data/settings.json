@@ -1,0 +1,76 @@
+{
+  "columns": [
+    3,
+    4,
+    3,
+    3,
+    3
+  ],
+  "lookback": 1,
+  "students": [
+    {
+      "name": "김민준",
+      "number": 1
+    },
+    {
+      "name": "이서연",
+      "number": 2
+    },
+    {
+      "name": "박지호",
+      "number": 3
+    },
+    {
+      "name": "최하은",
+      "number": 4
+    },
+    {
+      "name": "정준서",
+      "number": 5
+    },
+    {
+      "name": "강예린",
+      "number": 6
+    },
+    {
+      "name": "윤도윤",
+      "number": 7
+    },
+    {
+      "name": "장수아",
+      "number": 8
+    },
+    {
+      "name": "임시우",
+      "number": 9
+    },
+    {
+      "name": "한나윤",
+      "number": 10
+    },
+    {
+      "name": "오건우",
+      "number": 11
+    },
+    {
+      "name": "서지안",
+      "number": 12
+    },
+    {
+      "name": "신유진",
+      "number": 13
+    },
+    {
+      "name": "권태윤",
+      "number": 14
+    },
+    {
+      "name": "황서준",
+      "number": 15
+    },
+    {
+      "name": "안다은",
+      "number": 16
+    }
+  ]
+}
