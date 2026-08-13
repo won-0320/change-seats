@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}자리바꾸기{% endblock %}
+{% block content %}
+<section class="landing">
+  <h1>자리바꾸기</h1>
+  <p class="muted">반마다 독립된 방에서 명단을 관리하고 자리를 배정하세요. 방 코드/링크만 있으면 어디서든 접속할 수 있어요.</p>
+
+  <div class="card">
+    <h2>새 반 만들기</h2>
+    <form method="post" action="{{ url_for('main.create_room') }}">
+      <button type="submit" class="btn primary">새 방 만들기</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>기존 방 코드로 들어가기</h2>
+    <form method="get" action="{{ url_for('main.goto') }}" class="inline-form">
+      <input type="text" name="code" placeholder="예: AB3D9K7Q" maxlength="8" autocapitalize="characters" required>
+      <button type="submit" class="btn">들어가기</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,6 @@
+자리바꾸기.exe
+data/
+PLAN.md
+sample_students.csv
+__pycache__/
+*.pyc
