@@ -17,13 +17,25 @@ from psycopg.rows import dict_row
 
 _SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 
+# 콜드 스타트(서버리스 인스턴스)당 한 번만 스키마를 확인하면 되므로 프로세스
+# 전역 플래그로 둔다. `flask.g`는 요청마다 초기화되므로 여기엔 못 쓴다.
+_schema_ready = False
+
 
 def get_db() -> psycopg.Connection:
-    """요청 단위로 재사용되는 연결. `flask.g`에 캐싱한다."""
+    """요청 단위로 재사용되는 연결. `flask.g`에 캐싱한다.
+
+    앱을 만들 때(=모듈 임포트 시점)가 아니라 실제로 DB가 필요한 첫 요청에서만
+    연결하고 스키마를 확인한다 — 임포트 시점에 네트워크 I/O를 하면 그 연결이
+    조금만 삐끗해도 함수 전체(모든 라우트)가 "could not import"로 죽는다.
+    """
+    global _schema_ready
     if "db" not in g:
-        g.db = psycopg.connect(
-            current_app.config["DATABASE_URL"], row_factory=dict_row
-        )
+        database_url = current_app.config["DATABASE_URL"]
+        if not _schema_ready:
+            _ensure_schema(database_url)
+            _schema_ready = True
+        g.db = psycopg.connect(database_url, row_factory=dict_row)
     return g.db
 
 
@@ -33,7 +45,7 @@ def close_db(_exc: BaseException | None = None) -> None:
         conn.close()
 
 
-def init_db(database_url: str) -> None:
+def _ensure_schema(database_url: str) -> None:
     """스키마를 (없으면) 적용한다. 여러 번 불러도 안전하다."""
     statements = [
         stmt.strip()
@@ -47,7 +59,6 @@ def init_db(database_url: str) -> None:
 
 def init_app(app: Flask) -> None:
     app.teardown_appcontext(close_db)
-    init_db(app.config["DATABASE_URL"])
 
 
 @contextmanager
