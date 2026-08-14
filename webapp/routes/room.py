@@ -24,7 +24,15 @@ from flask import (
 
 from seatshuffle import render as render_mod
 from seatshuffle import roster as roster_mod
-from seatshuffle.model import build_seats, describe_layout, seat_exists, seating_grid
+from seatshuffle.model import (
+    ColumnSpec,
+    build_seats,
+    describe_layout,
+    expand_columns,
+    group_spans,
+    seat_exists,
+    seating_grid,
+)
 from seatshuffle.shuffler import assign_detailed
 
 from .. import config, rooms
@@ -79,7 +87,7 @@ def roster():
     conn = get_db()
     room = g.room
     student_rows = rooms.list_students(conn, room["id"])
-    counts = rooms.get_layout(room)
+    counts = expand_columns(rooms.get_layout(room))
     seatcount_msg, seatcount_ok = _seatcount_message(counts, len(student_rows))
 
     return render_template(
@@ -96,15 +104,17 @@ def roster():
 def classroom():
     conn = get_db()
     room = g.room
-    counts = rooms.get_layout(room)
+    groups = rooms.get_layout(room)
     student_rows = rooms.list_students(conn, room["id"])
-    seatcount_msg, seatcount_ok = _seatcount_message(counts, len(student_rows))
+    seatcount_msg, seatcount_ok = _seatcount_message(
+        expand_columns(groups), len(student_rows)
+    )
 
     return render_template(
         "room_classroom.html",
         room=room,
         code=g.room_code,
-        counts=counts,
+        groups=groups,
         seatcount_msg=seatcount_msg,
         seatcount_ok=seatcount_ok,
         min_cols=config.MIN_COLS,
@@ -121,16 +131,23 @@ def result():
     room = g.room
     active = rooms.active_seating(conn, room["id"])
     grid = None
+    grid_counts = None
+    group_end_cols: set[int] = set()
     if active is not None:
-        seating, active_counts = active
-        grid = seating_grid(seating, active_counts)
+        seating, grouped = active
+        grid_counts = expand_columns(grouped)
+        grid = seating_grid(seating, grid_counts)
+        spans = group_spans(grouped)
+        total_cols = len(grid_counts)
+        group_end_cols = {end for _, end in spans if end != total_cols}
 
     return render_template(
         "room_result.html",
         room=room,
         code=g.room_code,
         grid=grid,
-        grid_counts=active[1] if active is not None else None,
+        grid_counts=grid_counts,
+        group_end_cols=group_end_cols,
         round_count=rooms.round_count(conn, room["id"]),
         seat_exists=seat_exists,
     )
@@ -219,16 +236,20 @@ def update_settings():
         flash(f"열 수는 {config.MIN_COLS}~{config.MAX_COLS} 사이로 입력해주세요.")
         return _redirect_to("classroom")
 
-    counts: list[int] = []
+    groups: list[ColumnSpec] = []
     for i in range(1, cols + 1):
         value = request.form.get(f"row_{i}", "").strip()
         if not value.isdigit():
             flash(f"{i}열의 행 수를 숫자로 입력해주세요.")
             return _redirect_to("classroom")
-        counts.append(int(value))
+        width_text = request.form.get(f"width_{i}", "1").strip()
+        if width_text not in ("1", "2"):
+            flash(f"{i}열의 자리 너비는 1(홑자리) 또는 2(짝꿍)여야 합니다.")
+            return _redirect_to("classroom")
+        groups.append(ColumnSpec(depth=int(value), width=int(width_text)))
 
     try:
-        rooms.set_layout(conn, g.room["id"], counts)
+        rooms.set_layout(conn, g.room["id"], groups)
     except ValueError as exc:
         flash(str(exc))
         return _redirect_to("classroom")
@@ -248,7 +269,8 @@ def update_settings():
 def shuffle():
     conn = get_db()
     room = g.room
-    counts = rooms.get_layout(room)
+    grouped = rooms.get_layout(room)
+    counts = expand_columns(grouped)
     students = rooms.as_students(rooms.list_students(conn, room["id"]))
     total = sum(counts)
 
@@ -270,7 +292,7 @@ def shuffle():
         )
         return _redirect_to("result")
 
-    round_no = rooms.save_round(conn, room["id"], result.seating, counts)
+    round_no = rooms.save_round(conn, room["id"], result.seating, grouped)
     avoid_note = "회피 없음" if lookback == 0 else f"최근 {lookback}회차 회피"
     flash(f"배정 완료 · {result.describe()} · {round_no}회차 ({avoid_note})")
     return _redirect_to("result")
@@ -294,7 +316,8 @@ def export_csv():
     if active is None:
         flash("먼저 배정해주세요.")
         return _redirect_to("result")
-    seating, counts = active
+    seating, grouped = active
+    counts = expand_columns(grouped)
     with tempfile_scope(".csv") as tmp_path:
         roster_mod.export_seating(tmp_path, seating, counts)
         data = tmp_path.read_bytes()
@@ -311,10 +334,10 @@ def _render_active_png() -> bytes | None:
     active = rooms.active_seating(conn, g.room["id"])
     if active is None:
         return None
-    seating, counts = active
+    seating, grouped = active
     round_no = rooms.round_count(conn, g.room["id"])
     with tempfile_scope(".png") as tmp_path:
-        render_mod.render_png(seating, counts, path=tmp_path, round_no=round_no)
+        render_mod.render_png(seating, grouped, path=tmp_path, round_no=round_no)
         return tmp_path.read_bytes()
 
 

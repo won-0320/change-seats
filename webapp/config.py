@@ -5,6 +5,7 @@ from __future__ import annotations
 MIN_COLS, MAX_COLS = 1, 15
 MIN_ROWS, MAX_ROWS = 1, 15
 MAX_LOOKBACK = 10
+ALLOWED_WIDTHS = (1, 2)
 
 DEFAULT_LAYOUT = [3, 4, 3, 3, 3]
 ROOM_CODE_LENGTH = 8

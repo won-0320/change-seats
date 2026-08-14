@@ -9,12 +9,13 @@
         {% set r = loop.index %}
         {% for student in row %}
           {% set c = loop.index %}
+          {% set end_class = 'group-end' if c in group_end_cols else '' %}
           {% if seat_exists(grid_counts, r, c) %}
-            <div class="seat-card {{ 'filled' if student else 'empty' }}">
+            <div class="seat-card {{ 'filled' if student else 'empty' }} {{ end_class }}">
               {% if student %}<span class="seat-name">{{ student.name }}</span>{% endif %}
             </div>
           {% else %}
-            <div class="seat-card no-desk"></div>
+            <div class="seat-card no-desk {{ end_class }}"></div>
           {% endif %}
         {% endfor %}
       {% endfor %}

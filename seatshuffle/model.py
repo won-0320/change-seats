@@ -119,3 +119,90 @@ def describe_layout(layout: Sequence[int] | int, rows: int | None = None) -> str
     counts = as_layout(layout, rows)
     pattern = "·".join(str(n) for n in counts)
     return f"{len(counts)}열 · {pattern}행 · {sum(counts)}칸"
+
+
+# --- 그룹(열) 단위 레이아웃 --------------------------------------------------
+#
+# 위의 Layout/Seat/build_seats/seat_exists/seating_grid는 "물리 좌석 열" 단위로만
+# 동작한다 (셔플·이력 로직이 이 좌표를 그대로 쓰므로 건드리지 않는다).
+# 짝꿍(한 열에 좌석 2개가 간격 없이 붙는 것) 기능은 그 위에 얇게 얹는다:
+# 그룹 레이아웃(ColumnSpec 목록, 사용자가 보는 "열")을 물리 Layout으로
+# 펼친(expand) 뒤에야 기존 함수들에 넘긴다.
+
+
+@dataclass(frozen=True)
+class ColumnSpec:
+    """한 '열'(그룹). depth = 행 수, width = 1(홑자리) 또는 2(짝꿍, 붙어 앉음)."""
+
+    depth: int
+    width: int = 1
+
+
+GroupedLayout = list[ColumnSpec]
+
+
+def as_grouped_layout(
+    raw: "Sequence[object] | int", rows: int | None = None
+) -> GroupedLayout:
+    """그룹 레이아웃으로 정규화한다.
+
+    각 원소는 다음 중 하나일 수 있다:
+      int              → 홑자리 열 (width=1) — 옛 columns_json([3,4,3,3,3]) 호환
+      [depth, width]   → 짝꿍 여부를 담은 열
+      ColumnSpec       → 그대로 사용
+    as_grouped_layout(5, 4)는 as_layout(5, 4)처럼 5열 × 4행 균일 교실(전부 홑자리).
+    """
+    if isinstance(raw, int):
+        if rows is None:
+            raise ValueError("균일한 교실은 (열 수, 행 수) 두 값으로 지정하세요.")
+        grouped = [ColumnSpec(depth=rows, width=1) for _ in range(raw)]
+    else:
+        grouped = []
+        for item in raw:
+            if isinstance(item, ColumnSpec):
+                grouped.append(item)
+            elif isinstance(item, (list, tuple)):
+                if len(item) != 2:
+                    raise ValueError("열 설정은 [행 수, 너비] 형태여야 합니다.")
+                depth, width = item
+                grouped.append(ColumnSpec(depth=int(depth), width=int(width)))
+            else:
+                grouped.append(ColumnSpec(depth=int(item), width=1))
+
+    if not grouped:
+        raise ValueError("열이 최소 하나는 있어야 합니다.")
+    for spec in grouped:
+        if spec.depth < 1:
+            raise ValueError("각 열의 행 수는 1 이상이어야 합니다.")
+        if spec.width not in (1, 2):
+            raise ValueError("각 열의 너비는 1(홑자리) 또는 2(짝꿍)여야 합니다.")
+    return grouped
+
+
+def expand_columns(grouped: GroupedLayout) -> Layout:
+    """그룹 레이아웃을 물리 열 단위 Layout으로 펼친다.
+
+    build_seats/seat_exists/seating_grid 등 기존 물리 좌석 로직으로 들어가는
+    유일한 통로 — 폭 2인 열은 같은 depth를 가진 물리 열 2개로 펼쳐진다.
+    """
+    return [spec.depth for spec in grouped for _ in range(spec.width)]
+
+
+def group_spans(grouped: GroupedLayout) -> list[tuple[int, int]]:
+    """그룹별 물리 열 범위 (start, end), 1부터 시작, 양끝 포함.
+
+    예: widths [1, 2, 1] → [(1, 1), (2, 3), (4, 4)]
+    """
+    spans = []
+    col = 1
+    for spec in grouped:
+        spans.append((col, col + spec.width - 1))
+        col += spec.width
+    return spans
+
+
+def describe_grouped_layout(grouped: GroupedLayout) -> str:
+    """'5열 · 3·4·3·3·3행 · 18칸' 처럼 사람이 읽는 문장 (짝꿍 열은 좌석 2배로 집계)."""
+    pattern = "·".join(str(spec.depth) for spec in grouped)
+    total = sum(spec.depth * spec.width for spec in grouped)
+    return f"{len(grouped)}열 · {pattern}행 · {total}칸"

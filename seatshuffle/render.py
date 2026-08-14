@@ -12,7 +12,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .model import Seat, Student, as_layout, seating_grid
+from .model import GroupedLayout, Seat, Student, as_grouped_layout, expand_columns, seating_grid
 
 REGULAR_FONTS = (r"C:\Windows\Fonts\malgun.ttf", r"C:\Windows\Fonts\gulim.ttc")
 BOLD_FONTS = (r"C:\Windows\Fonts\malgunbd.ttf", *REGULAR_FONTS)
@@ -36,7 +36,7 @@ BOARD_TEXT = (245, 246, 248)
 
 def render_png(
     seating: dict[Student, Seat],
-    layout: Sequence[int] | int,
+    layout: GroupedLayout | Sequence[int] | int,
     rows: int | None = None,
     path: str | Path = "자리배치도.png",
     title: str = "자리 배치도",
@@ -44,15 +44,19 @@ def render_png(
 ) -> Path:
     """좌석 카드를 그려 PNG로 저장하고 저장 경로를 돌려준다.
 
-    `layout`은 열별 행 수 목록([3, 4, 3, 3, 3]) 또는 균일 교실의 (열 수, 행 수).
+    `layout`은 열별 행 수 목록([3, 4, 3, 3, 3]), 균일 교실의 (열 수, 행 수),
+    또는 짝꿍 폭을 담은 GroupedLayout(ColumnSpec 목록)일 수 있다.
     열마다 행 수가 다르면 짧은 열은 앞줄(칠판 쪽)부터 채우고 뒤를 비운다.
+    너비 2(짝꿍)인 열은 물리 좌석 2개가 간격 없이 붙어서 그려진다.
     """
-    counts = as_layout(layout, rows)
+    grouped = as_grouped_layout(layout, rows)
+    counts = expand_columns(grouped)
     grid = seating_grid(seating, counts)
     cols = len(counts)
     depth = max(counts)
+    x_positions = _column_x_positions(grouped)
 
-    width = MARGIN * 2 + cols * CELL_W + (cols - 1) * GAP
+    width = MARGIN * 2 + cols * CELL_W + (len(grouped) - 1) * GAP
     height = (
         MARGIN * 2
         + HEADER_H
@@ -94,7 +98,7 @@ def render_png(
     for c, depth_of_col in enumerate(counts):
         # 각 열은 앞줄(칠판 쪽)부터 채운다. 짧은 열은 뒤가 비어 카드도 그리지 않는다.
         for r in range(depth_of_col):
-            x0 = MARGIN + c * (CELL_W + GAP)
+            x0 = x_positions[c]
             y0 = grid_top + r * (CELL_H + GAP)
             x1, y1 = x0 + CELL_W, y0 + CELL_H
             student = grid[r][c]
@@ -125,6 +129,19 @@ def render_png(
     path.parent.mkdir(parents=True, exist_ok=True)
     image.save(path)
     return path
+
+
+def _column_x_positions(grouped: GroupedLayout) -> list[float]:
+    """물리 열마다 x0 좌표. 짝꿍(같은 열) 안에서는 간격 없이, 열 사이에서만 GAP."""
+    positions: list[float] = []
+    x = MARGIN
+    for i, spec in enumerate(grouped):
+        for _ in range(spec.width):
+            positions.append(x)
+            x += CELL_W
+        if i != len(grouped) - 1:
+            x += GAP
+    return positions
 
 
 def print_image(path: str | Path) -> bool:

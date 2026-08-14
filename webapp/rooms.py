@@ -16,7 +16,7 @@ import psycopg
 
 from seatshuffle import history as history_mod
 from seatshuffle import roster as roster_mod
-from seatshuffle.model import Layout, Seat, Student
+from seatshuffle.model import GroupedLayout, Seat, Student, as_grouped_layout
 from seatshuffle.shuffler import Forbidden
 
 from . import config
@@ -59,25 +59,27 @@ def get_room(conn: psycopg.Connection, code: str) -> dict[str, Any] | None:
     return conn.execute("SELECT * FROM rooms WHERE code = %s", (code,)).fetchone()
 
 
-def get_layout(room_row: dict[str, Any]) -> Layout:
-    return [int(n) for n in json.loads(room_row["columns_json"])]
+def get_layout(room_row: dict[str, Any]) -> GroupedLayout:
+    return as_grouped_layout(json.loads(room_row["columns_json"]))
 
 
-def set_layout(conn: psycopg.Connection, room_id: int, counts: Layout) -> None:
+def set_layout(conn: psycopg.Connection, room_id: int, grouped: GroupedLayout) -> None:
     """`_parse_layout`과 동일한 범위 검증. 잘못되면 ValueError(사용자에게 보일 메시지)."""
-    if not (config.MIN_COLS <= len(counts) <= config.MAX_COLS):
+    if not (config.MIN_COLS <= len(grouped) <= config.MAX_COLS):
         raise ValueError(f"열 수는 {config.MIN_COLS}~{config.MAX_COLS} 사이로 입력해주세요.")
-    for i, n in enumerate(counts, start=1):
-        if not (config.MIN_ROWS <= n <= config.MAX_ROWS):
+    for i, spec in enumerate(grouped, start=1):
+        if not (config.MIN_ROWS <= spec.depth <= config.MAX_ROWS):
             raise ValueError(
                 f"{i}열의 행 수는 {config.MIN_ROWS}~{config.MAX_ROWS} 사이로 입력해주세요."
             )
+        if spec.width not in config.ALLOWED_WIDTHS:
+            raise ValueError(f"{i}열의 자리 너비는 1(홑자리) 또는 2(짝꿍)여야 합니다.")
     now = _now()
     with immediate_transaction(conn, room_id):
         conn.execute(
             "UPDATE rooms SET columns_json = %s, active_round_id = NULL, updated_at = %s"
             " WHERE id = %s",
-            (json.dumps(counts), now, room_id),
+            (json.dumps([[spec.depth, spec.width] for spec in grouped]), now, room_id),
         )
 
 
@@ -212,7 +214,7 @@ def save_round(
     conn: psycopg.Connection,
     room_id: int,
     seating: dict[Student, Seat],
-    counts: Layout,
+    grouped: GroupedLayout,
 ) -> int:
     now = _now()
     with immediate_transaction(conn, room_id):
@@ -224,10 +226,11 @@ def save_round(
         seats_json = json.dumps(
             {student.name: [seat.row, seat.col] for student, seat in seating.items()}
         )
+        columns_json = json.dumps([[spec.depth, spec.width] for spec in grouped])
         cursor = conn.execute(
             "INSERT INTO rounds (room_id, round_no, columns_json, seats_json, created_at)"
             " VALUES (%s, %s, %s, %s, %s) RETURNING id",
-            (room_id, round_no, json.dumps(counts), seats_json, now),
+            (room_id, round_no, columns_json, seats_json, now),
         )
         new_round_id = cursor.fetchone()["id"]
         conn.execute(
@@ -252,7 +255,7 @@ def clear_history(conn: psycopg.Connection, room_id: int) -> None:
 
 def active_seating(
     conn: psycopg.Connection, room_id: int
-) -> tuple[dict[Student, Seat], Layout] | None:
+) -> tuple[dict[Student, Seat], GroupedLayout] | None:
     """현재 화면에 보여줄 배정. 명단/교실을 바꾸면 None이 된다 (이력은 안 지워짐)."""
     room_row = conn.execute(
         "SELECT active_round_id FROM rooms WHERE id = %s", (room_id,)
@@ -267,9 +270,9 @@ def active_seating(
     if round_row is None:
         return None
 
-    counts = [int(n) for n in json.loads(round_row["columns_json"])]
+    grouped = as_grouped_layout(json.loads(round_row["columns_json"]))
     seats = json.loads(round_row["seats_json"])
     seating = {
         Student(name): Seat(int(pos[0]), int(pos[1])) for name, pos in seats.items()
     }
-    return seating, counts
+    return seating, grouped

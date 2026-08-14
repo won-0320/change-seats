@@ -176,6 +176,7 @@ textarea {
 }
 
 .row-input { width: 3.4em; }
+.width-input { font-size: 0.85rem; }
 
 .btn {
   display: inline-block;
@@ -235,8 +236,13 @@ details form {
 
 .seat-grid {
   display: grid;
-  gap: 8px;
+  row-gap: 8px;
+  column-gap: 0;
   margin-bottom: 16px;
+}
+
+.seat-card.group-end {
+  margin-right: 8px;
 }
 
 .seat-card {

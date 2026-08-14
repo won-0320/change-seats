@@ -5,16 +5,22 @@
   <form method="post" action="{{ url_for('room.update_settings', code=code) }}" id="settings-form">
     <label class="field">열 수 ({{ min_cols }}~{{ max_cols }})
       <input id="cols-input" type="number" name="cols" min="{{ min_cols }}" max="{{ max_cols }}"
-             value="{{ counts|length }}" oninput="syncColInputs()">
+             value="{{ groups|length }}" oninput="syncColInputs()">
     </label>
 
-    <p class="muted small">열마다 행 수를 직접 입력 · 1열 = 가장 왼쪽 줄 · 1행 = 칠판 쪽</p>
+    <p class="muted small">열마다 행 수와 자리 너비를 직접 입력 · 1열 = 가장 왼쪽 줄 · 1행 = 칠판 쪽 · 짝꿍(2자리)은 간격 없이 붙어 앉음</p>
     <div id="row-inputs" class="row-inputs">
-      {% for n in counts %}
+      {% for spec in groups %}
       <span class="col-cell">
         <label>{{ loop.index }}열
           <input class="row-input" type="number" min="{{ min_rows }}" max="{{ max_rows }}"
-                 name="row_{{ loop.index }}" value="{{ n }}">
+                 name="row_{{ loop.index }}" value="{{ spec.depth }}">
+        </label>
+        <label>
+          <select class="width-input" name="width_{{ loop.index }}">
+            <option value="1" {{ 'selected' if spec.width == 1 }}>1자리</option>
+            <option value="2" {{ 'selected' if spec.width == 2 }}>2자리(짝꿍)</option>
+          </select>
         </label>
       </span>
       {% endfor %}
@@ -45,11 +51,16 @@ function syncColInputs() {
   const current = cells.length;
 
   if (target > current) {
-    const fallback = current > 0 ? cells[current - 1].querySelector('.row-input').value : '3';
+    const fallbackDepth = current > 0 ? cells[current - 1].querySelector('.row-input').value : '3';
+    const fallbackWidth = current > 0 ? cells[current - 1].querySelector('.width-input').value : '1';
     for (let i = current + 1; i <= target; i++) {
       const wrap = document.createElement('span');
       wrap.className = 'col-cell';
-      wrap.innerHTML = '<label>' + i + '열 <input class="row-input" type="number" min="{{ min_rows }}" max="{{ max_rows }}" name="row_' + i + '" value="' + fallback + '"></label>';
+      wrap.innerHTML = '<label>' + i + '열 <input class="row-input" type="number" min="{{ min_rows }}" max="{{ max_rows }}" name="row_' + i + '" value="' + fallbackDepth + '"></label>' +
+        '<label><select class="width-input" name="width_' + i + '">' +
+        '<option value="1"' + (fallbackWidth === '1' ? ' selected' : '') + '>1자리</option>' +
+        '<option value="2"' + (fallbackWidth === '2' ? ' selected' : '') + '>2자리(짝꿍)</option>' +
+        '</select></label>';
       container.appendChild(wrap);
     }
   } else if (target < current) {
