@@ -1,0 +1,39 @@
+{% extends "room_base.html" %}
+{% block tab_content %}
+<section class="card result-panel">
+  <h2>배치 결과 · {{ round_count }}회차까지 기록됨</h2>
+  {% if grid %}
+    <div class="board">칠 판</div>
+    <div class="seat-grid" style="grid-template-columns: repeat({{ grid_counts|length }}, 1fr);">
+      {% for row in grid %}
+        {% set r = loop.index %}
+        {% for student in row %}
+          {% set c = loop.index %}
+          {% if seat_exists(grid_counts, r, c) %}
+            <div class="seat-card {{ 'filled' if student else 'empty' }}">
+              {% if student %}<span class="seat-name">{{ student.name }}</span>{% endif %}
+            </div>
+          {% else %}
+            <div class="seat-card no-desk"></div>
+          {% endif %}
+        {% endfor %}
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">아직 배정 결과가 없어요. [자리 배정]을 눌러보세요.</p>
+  {% endif %}
+
+  <div class="action-bar">
+    <form method="post" action="{{ url_for('room.shuffle', code=code) }}" class="inline-form">
+      <button type="submit" class="btn primary">자리 배정</button>
+    </form>
+    <a class="btn" href="{{ url_for('room.export_png', code=code) }}">PNG 저장</a>
+    <a class="btn" href="{{ url_for('room.print_page', code=code) }}" target="_blank">인쇄</a>
+    <a class="btn" href="{{ url_for('room.export_csv', code=code) }}">CSV 내보내기</a>
+    <form method="post" action="{{ url_for('room.clear_history', code=code) }}" class="inline-form"
+          onsubmit="return confirm('{{ round_count }}회차 기록을 모두 지울까요?')">
+      <button type="submit" class="btn danger">이력 초기화</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

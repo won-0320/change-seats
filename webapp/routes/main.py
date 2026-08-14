@@ -19,7 +19,7 @@ def index():
 def create_room():
     conn = get_db()
     code = rooms.create_room(conn)
-    return redirect(url_for("room.show", code=code))
+    return redirect(url_for("room.roster", code=code))
 
 
 @bp.get("/goto")
@@ -27,6 +27,6 @@ def goto():
     code = request.args.get("code", "").strip().upper()
     conn = get_db()
     if code and rooms.get_room(conn, code) is not None:
-        return redirect(url_for("room.show", code=code))
+        return redirect(url_for("room.roster", code=code))
     flash("코드를 찾을 수 없어요. 다시 확인해주세요.")
     return redirect(url_for("main.index"))

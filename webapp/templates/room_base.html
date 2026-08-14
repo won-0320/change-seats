@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}자리바꾸기 · {{ code }}{% endblock %}
+{% block header_extra %}
+<div class="room-code">
+  방 코드: <strong>{{ code }}</strong>
+  <button type="button" class="btn small" onclick="navigator.clipboard.writeText(window.location.href)">링크 복사</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<nav class="tabs">
+  <a class="tab-link {{ 'active' if request.endpoint == 'room.roster' }}" href="{{ url_for('room.roster', code=code) }}">명단</a>
+  <a class="tab-link {{ 'active' if request.endpoint == 'room.classroom' }}" href="{{ url_for('room.classroom', code=code) }}">교실</a>
+  <a class="tab-link {{ 'active' if request.endpoint == 'room.result' }}" href="{{ url_for('room.result', code=code) }}">배치 결과</a>
+</nav>
+{% block tab_content %}{% endblock %}
+{% endblock %}

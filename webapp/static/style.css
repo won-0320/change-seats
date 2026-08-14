@@ -87,15 +87,26 @@ main {
   text-align: center;
 }
 
-.layout {
-  display: grid;
-  grid-template-columns: 340px 1fr;
-  gap: 20px;
-  align-items: start;
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--card-edge);
 }
 
-@media (max-width: 800px) {
-  .layout { grid-template-columns: 1fr; }
+.tab-link {
+  display: inline-block;
+  padding: 8px 16px;
+  text-decoration: none;
+  color: var(--muted-fg);
+  font-size: 0.95rem;
+  border-bottom: 2px solid transparent;
+}
+
+.tab-link.active {
+  color: var(--text);
+  font-weight: 600;
+  border-bottom-color: var(--text);
 }
 
 .roster-list {

@@ -48,8 +48,8 @@ def _load_room():
     g.room = room
 
 
-def _redirect_to_room():
-    return redirect(url_for("room.show", code=g.room_code))
+def _redirect_to(tab_endpoint: str):
+    return redirect(url_for(f"room.{tab_endpoint}", code=g.room_code))
 
 
 def _content_disposition(filename: str, ascii_fallback: str) -> str:
@@ -75,13 +75,50 @@ def _seatcount_message(counts: list[int], student_count: int) -> tuple[str, bool
 
 
 @bp.get("")
-def show():
+def roster():
     conn = get_db()
     room = g.room
     student_rows = rooms.list_students(conn, room["id"])
     counts = rooms.get_layout(room)
     seatcount_msg, seatcount_ok = _seatcount_message(counts, len(student_rows))
 
+    return render_template(
+        "room_roster.html",
+        room=room,
+        code=g.room_code,
+        students=student_rows,
+        seatcount_msg=seatcount_msg,
+        seatcount_ok=seatcount_ok,
+    )
+
+
+@bp.get("/classroom")
+def classroom():
+    conn = get_db()
+    room = g.room
+    counts = rooms.get_layout(room)
+    student_rows = rooms.list_students(conn, room["id"])
+    seatcount_msg, seatcount_ok = _seatcount_message(counts, len(student_rows))
+
+    return render_template(
+        "room_classroom.html",
+        room=room,
+        code=g.room_code,
+        counts=counts,
+        seatcount_msg=seatcount_msg,
+        seatcount_ok=seatcount_ok,
+        min_cols=config.MIN_COLS,
+        max_cols=config.MAX_COLS,
+        min_rows=config.MIN_ROWS,
+        max_rows=config.MAX_ROWS,
+        max_lookback=config.MAX_LOOKBACK,
+    )
+
+
+@bp.get("/result")
+def result():
+    conn = get_db()
+    room = g.room
     active = rooms.active_seating(conn, room["id"])
     grid = None
     if active is not None:
@@ -89,23 +126,13 @@ def show():
         grid = seating_grid(seating, active_counts)
 
     return render_template(
-        "room.html",
+        "room_result.html",
         room=room,
         code=g.room_code,
-        students=student_rows,
-        counts=counts,
-        seatcount_msg=seatcount_msg,
-        seatcount_ok=seatcount_ok,
         grid=grid,
         grid_counts=active[1] if active is not None else None,
         round_count=rooms.round_count(conn, room["id"]),
         seat_exists=seat_exists,
-        describe_layout=describe_layout,
-        min_cols=config.MIN_COLS,
-        max_cols=config.MAX_COLS,
-        min_rows=config.MIN_ROWS,
-        max_rows=config.MAX_ROWS,
-        max_lookback=config.MAX_LOOKBACK,
     )
 
 
@@ -119,7 +146,7 @@ def add_student():
     number = request.form.get("number", "").strip()
     if not name:
         flash("이름을 입력해주세요.")
-        return _redirect_to_room()
+        return _redirect_to("roster")
 
     line = f"{number}. {name}" if number else name
     added, warnings = rooms.add_students_from_lines(conn, g.room["id"], [line])
@@ -127,7 +154,7 @@ def add_student():
         flash(f"{added}명 추가")
     for warning in warnings:
         flash(warning)
-    return _redirect_to_room()
+    return _redirect_to("roster")
 
 
 @bp.post("/students/bulk")
@@ -138,7 +165,7 @@ def add_students_bulk():
     flash(f"{added}명 추가" if added else "추가된 학생이 없어요.")
     for warning in warnings:
         flash(warning)
-    return _redirect_to_room()
+    return _redirect_to("roster")
 
 
 @bp.post("/students/<int:student_id>/delete")
@@ -146,7 +173,7 @@ def delete_student(student_id: int):
     conn = get_db()
     rooms.delete_student(conn, g.room["id"], student_id)
     flash("삭제했어요.")
-    return _redirect_to_room()
+    return _redirect_to("roster")
 
 
 @bp.post("/students/clear")
@@ -154,7 +181,7 @@ def clear_students():
     conn = get_db()
     rooms.clear_students(conn, g.room["id"])
     flash("명단을 비웠습니다.")
-    return _redirect_to_room()
+    return _redirect_to("roster")
 
 
 @bp.post("/students/import")
@@ -163,17 +190,17 @@ def import_students():
     file = request.files.get("file")
     if file is None or not file.filename:
         flash("CSV 파일을 선택해주세요.")
-        return _redirect_to_room()
+        return _redirect_to("roster")
     try:
         warnings = rooms.import_csv(conn, g.room["id"], file)
     except (OSError, UnicodeDecodeError) as exc:
         flash(f"파일을 읽을 수 없어요: {exc}")
-        return _redirect_to_room()
+        return _redirect_to("roster")
 
     flash(f"{file.filename} 에서 명단을 불러왔어요.")
     for warning in warnings:
         flash(warning)
-    return _redirect_to_room()
+    return _redirect_to("roster")
 
 
 # --- 교실 설정 ----------------------------------------------------------
@@ -186,32 +213,32 @@ def update_settings():
     cols_text = request.form.get("cols", "").strip()
     if not cols_text.isdigit():
         flash("열 수를 숫자로 입력해주세요.")
-        return _redirect_to_room()
+        return _redirect_to("classroom")
     cols = int(cols_text)
     if not (config.MIN_COLS <= cols <= config.MAX_COLS):
         flash(f"열 수는 {config.MIN_COLS}~{config.MAX_COLS} 사이로 입력해주세요.")
-        return _redirect_to_room()
+        return _redirect_to("classroom")
 
     counts: list[int] = []
     for i in range(1, cols + 1):
         value = request.form.get(f"row_{i}", "").strip()
         if not value.isdigit():
             flash(f"{i}열의 행 수를 숫자로 입력해주세요.")
-            return _redirect_to_room()
+            return _redirect_to("classroom")
         counts.append(int(value))
 
     try:
         rooms.set_layout(conn, g.room["id"], counts)
     except ValueError as exc:
         flash(str(exc))
-        return _redirect_to_room()
+        return _redirect_to("classroom")
 
     lookback_text = request.form.get("lookback", "0").strip()
     lookback = int(lookback_text) if lookback_text.isdigit() else 0
     rooms.set_lookback(conn, g.room["id"], lookback)
 
     flash("교실 설정을 저장했어요.")
-    return _redirect_to_room()
+    return _redirect_to("classroom")
 
 
 # --- 배정 ----------------------------------------------------------------
@@ -230,7 +257,7 @@ def shuffle():
             f"학생은 {len(students)}명인데 좌석은 {total}칸입니다. "
             f"({describe_layout(counts)}) 열별 행 수를 조정하거나 명단을 확인해주세요."
         )
-        return _redirect_to_room()
+        return _redirect_to("result")
 
     lookback = room["lookback"]
     forbidden = rooms.forbidden_seats_for_room(conn, room["id"], lookback)
@@ -241,12 +268,12 @@ def shuffle():
             "지난 자리를 모두 피하는 배정을 찾지 못했어요. "
             "'회피할 회차 수'를 줄이거나 교실 크기를 늘려보세요."
         )
-        return _redirect_to_room()
+        return _redirect_to("result")
 
     round_no = rooms.save_round(conn, room["id"], result.seating, counts)
     avoid_note = "회피 없음" if lookback == 0 else f"최근 {lookback}회차 회피"
     flash(f"배정 완료 · {result.describe()} · {round_no}회차 ({avoid_note})")
-    return _redirect_to_room()
+    return _redirect_to("result")
 
 
 @bp.post("/history/clear")
@@ -254,7 +281,7 @@ def clear_history():
     conn = get_db()
     rooms.clear_history(conn, g.room["id"])
     flash("배정 이력을 초기화했습니다.")
-    return _redirect_to_room()
+    return _redirect_to("result")
 
 
 # --- 내보내기 / 인쇄 -------------------------------------------------------
@@ -266,7 +293,7 @@ def export_csv():
     active = rooms.active_seating(conn, g.room["id"])
     if active is None:
         flash("먼저 배정해주세요.")
-        return _redirect_to_room()
+        return _redirect_to("result")
     seating, counts = active
     with tempfile_scope(".csv") as tmp_path:
         roster_mod.export_seating(tmp_path, seating, counts)
@@ -296,7 +323,7 @@ def export_png():
     data = _render_active_png()
     if data is None:
         flash("먼저 배정해주세요.")
-        return _redirect_to_room()
+        return _redirect_to("result")
     filename = f"자리배치_{date.today().isoformat()}.png"
     return Response(
         data,
@@ -318,5 +345,5 @@ def print_page():
     conn = get_db()
     if rooms.active_seating(conn, g.room["id"]) is None:
         flash("먼저 배정해주세요.")
-        return _redirect_to_room()
+        return _redirect_to("result")
     return render_template("print.html", code=g.room_code)

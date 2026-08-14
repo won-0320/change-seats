@@ -1,0 +1,46 @@
+{% extends "room_base.html" %}
+{% block tab_content %}
+<section class="card">
+  <h2>명단 ({{ students|length }}명)</h2>
+  <p class="{{ 'ok-text' if seatcount_ok else 'bad-text' }}">{{ seatcount_msg }}</p>
+  <ol class="roster-list">
+    {% for student in students %}
+    <li>
+      <span>{% if student.number is not none %}{{ student.number }}. {% endif %}{{ student.name }}</span>
+      <form method="post" action="{{ url_for('room.delete_student', code=code, student_id=student.id) }}" class="inline-form">
+        <button type="submit" class="link-btn">삭제</button>
+      </form>
+    </li>
+    {% else %}
+    <li class="muted">아직 학생이 없어요.</li>
+    {% endfor %}
+  </ol>
+
+  <form method="post" action="{{ url_for('room.add_student', code=code) }}" class="inline-form add-form">
+    <input type="text" name="name" placeholder="이름" required>
+    <input type="text" name="number" placeholder="번호(선택)" size="4">
+    <button type="submit" class="btn">추가</button>
+  </form>
+
+  <details>
+    <summary>여러 명 붙여넣기</summary>
+    <form method="post" action="{{ url_for('room.add_students_bulk', code=code) }}">
+      <textarea name="lines" rows="6" placeholder="한 줄에 한 명씩 붙여넣으세요.&#10;'1. 김민준' 처럼 번호가 붙어 있어도 됩니다."></textarea>
+      <button type="submit" class="btn">추가</button>
+    </form>
+  </details>
+
+  <details>
+    <summary>CSV로 불러오기 (기존 명단 교체)</summary>
+    <form method="post" action="{{ url_for('room.import_students', code=code) }}" enctype="multipart/form-data" class="inline-form">
+      <input type="file" name="file" accept=".csv">
+      <button type="submit" class="btn">불러오기</button>
+    </form>
+  </details>
+
+  <form method="post" action="{{ url_for('room.clear_students', code=code) }}"
+        onsubmit="return confirm('명단을 전부 지울까요?')">
+    <button type="submit" class="btn danger">명단 비우기</button>
+  </form>
+</section>
+{% endblock %}
