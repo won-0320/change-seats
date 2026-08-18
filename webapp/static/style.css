@@ -267,6 +267,16 @@ details form {
 .seat-name {
   font-size: 0.9rem;
   word-break: keep-all;
+  opacity: 1;
+  transition: opacity 0.25s ease;
+}
+
+.seat-card.pending-reveal {
+  background: var(--empty-fill);
+}
+
+.seat-card.pending-reveal .seat-name {
+  opacity: 0;
 }
 
 .action-bar {

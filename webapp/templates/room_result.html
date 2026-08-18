@@ -11,8 +11,8 @@
           {% set c = loop.index %}
           {% set end_class = 'group-end' if c in group_end_cols else '' %}
           {% if seat_exists(grid_counts, r, c) %}
-            <div class="seat-card {{ 'filled' if student else 'empty' }} {{ end_class }}">
-              {% if student %}<span class="seat-name">{{ student.name }}</span>{% endif %}
+            <div class="seat-card {{ 'filled' if student else 'empty' }} {{ 'pending-reveal' if (animate and student) }} {{ end_class }}">
+              {% if student %}<span class="seat-name">{{ student.display() }}</span>{% endif %}
             </div>
           {% else %}
             <div class="seat-card no-desk {{ end_class }}"></div>
@@ -37,4 +37,21 @@
     </form>
   </div>
 </section>
+
+{% if animate %}
+<script>
+(function () {
+  var seats = Array.prototype.slice.call(document.querySelectorAll('.seat-card.pending-reveal'));
+  seats.forEach(function (seat, i) {
+    setTimeout(function () {
+      seat.classList.remove('pending-reveal');
+      seat.classList.add('revealed');
+    }, i * 150);
+  });
+  if (window.history && window.history.replaceState) {
+    window.history.replaceState(null, '', window.location.pathname);
+  }
+})();
+</script>
+{% endif %}
 {% endblock %}

@@ -150,6 +150,7 @@ def result():
         group_end_cols=group_end_cols,
         round_count=rooms.round_count(conn, room["id"]),
         seat_exists=seat_exists,
+        animate=request.args.get("animate") == "1",
     )
 
 
@@ -295,7 +296,7 @@ def shuffle():
     round_no = rooms.save_round(conn, room["id"], result.seating, grouped)
     avoid_note = "회피 없음" if lookback == 0 else f"최근 {lookback}회차 회피"
     flash(f"배정 완료 · {result.describe()} · {round_no}회차 ({avoid_note})")
-    return _redirect_to("result")
+    return redirect(url_for("room.result", code=g.room_code, animate=1))
 
 
 @bp.post("/history/clear")
