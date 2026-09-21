@@ -5,3 +5,4 @@ dist/
 *.spec
 data/rooms.db
 data/rooms.db-*
+*.exe
